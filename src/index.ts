@@ -1,26 +1,38 @@
 import express from 'express';
-import cors from 'cors';
+import { z } from 'zod';
 
-const app = express();
-app.use(cors());
+export const app = express();
 app.use(express.json());
 
 app.get('/health', (req, res) => {
-    res.json({ status: 'healthy', domain: 'testing', uptime: process.uptime() });
+  res.json({ status: 'healthy', service: 'TS-E2E-Testing' });
 });
 
-app.post('/api/v1/process', (req, res) => {
-    const { payload } = req.body;
-    if (!payload) return res.status(400).json({ error: 'Missing payload' });
-    res.status(201).json({ 
-        success: true, 
-        processed: payload, 
-        timestamp: new Date().toISOString() 
-    });
+const TestRunSchema = z.object({
+  suite: z.string(),
+  browser: z.enum(['chrome', 'firefox', 'webkit'])
 });
+
+const runs: Record<string, any> = {};
+
+app.post('/api/v1/runs', (req, res) => {
+  try {
+    const data = TestRunSchema.parse(req.body);
+    const id = `run_${Date.now()}`;
+    runs[id] = { ...data, status: 'queued' };
+    res.json({ id, status: 'queued' });
+  } catch (e) {
+    res.status(400).json({ error: 'Invalid payload' });
+  }
+});
+
+app.get('/api/v1/runs/:id', (req, res) => {
+  const run = runs[req.params.id];
+  if (!run) return res.status(404).json({ error: 'Not found' });
+  res.json(run);
+});
+
 
 if (require.main === module) {
-    app.listen(3000, () => console.log('TS-E2E-Testing API running on port 3000'));
+  app.listen(3000, () => console.log('Server running on port 3000'));
 }
-
-export default app;
